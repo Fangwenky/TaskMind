@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧠 TaskMind - AI智能任务管理</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0d1117; color: #c9d1d9; min-height: 100vh; }
+        
+        header { background: linear-gradient(135deg, #238636 0%, #1f6feb 100%); padding: 25px; text-align: center; }
+        header h1 { font-size: 2rem; margin-bottom: 5px; }
+        
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        
+        /* Stats */
+        .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 20px 0; }
+        .stat { background: #161b22; padding: 20px; border-radius: 12px; text-align: center; border: 1px solid #30363d; }
+        .stat-value { font-size: 1.8rem; font-weight: bold; }
+        .stat-label { font-size: 0.85rem; color: #8b949e; margin-top: 5px; }
+        
+        /* Tabs */
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab { background: #161b22; border: 1px solid #30363d; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
+        .tab:hover { background: #21262d; }
+        .tab.active { background: #238636; border-color: #238636; }
+        
+        .section { display: none; }
+        .section.active { display: block; }
+        
+        /* Task Form */
+        .task-form { background: #161b22; padding: 20px; border-radius: 12px; border: 1px solid #30363d; margin-bottom: 20px; }
+        .task-form input, .task-form textarea, .task-form select { width: 100%; background: #0d1117; border: 1px solid #30363d; padding: 12px; border-radius: 8px; color: #c9d1d9; margin-bottom: 12px; }
+        .task-form input:focus, .task-form textarea:focus { outline: none; border-color: #238636; }
+        
+        /* Tasks */
+        .task-list { display: flex; flex-direction: column; gap: 10px; }
+        .task { background: #161b22; border: 1px solid #30363d; padding: 15px 20px; border-radius: 10px; display: flex; align-items: center; gap: 15px; transition: all 0.3s; }
+        .task:hover { border-color: #238636; transform: translateX(5px); }
+        .task.completed { opacity: 0.5; }
+        .task.completed .task-title { text-decoration: line-through; }
+        
+        .task-priority { padding: 4px 10px; border-radius: 15px; font-size: 0.75rem; font-weight: bold; }
+        .priority-high { background: #da3633; color: white; }
+        .priority-medium { background: #d29922; color: white; }
+        .priority-low { background: #238636; color: white; }
+        
+        .task-content { flex: 1; }
+        .task-title { font-weight: 500; margin-bottom: 5px; }
+        .task-meta { font-size: 0.8rem; color: #8b949e; display: flex; gap: 15px; }
+        
+        .task-actions { display: flex; gap: 8px; }
+        .task-btn { background: none; border: none; padding: 8px; cursor: pointer; font-size: 1.1rem; }
+        .task-btn:hover { transform: scale(1.2); }
+        
+        /* AI Panel */
+        .ai-panel { background: linear-gradient(135deg, #161b22, #1f2d40); border: 1px solid #1f6feb; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        .ai-panel h3 { color: #1f6feb; margin-bottom: 15px; }
+        
+        /* Analytics */
+        .chart { background: #161b22; border-radius: 12px; padding: 20px; border: 1px solid #30363d; margin-bottom: 20px; }
+        .chart-bar { display: flex; align-items: center; margin-bottom: 10px; }
+        .chart-label { width: 80px; font-size: 0.85rem; color: #8b949e; }
+        .chart-value { flex: 1; background: #21262d; height: 24px; border-radius: 4px; overflow: hidden; }
+        .chart-fill { background: linear-gradient(90deg, #238636, #1f6feb); height: 100%; }
+        
+        /* Pomodoro */
+        .pomodoro { background: #161b22; border-radius: 12px; padding: 30px; text-align: center; border: 1px solid #30363d; }
+        .timer { font-size: 4rem; font-weight: bold; font-family: monospace; color: #238636; }
+        .timer.break { color: #1f6feb; }
+        .timer-controls { display: flex; gap: 15px; justify-content: center; margin-top: 20px; }
+        
+        /* Empty */
+        .empty { text-align: center; padding: 40px; color: #8b949e; }
+        
+        /* Tags */
+        .tag { background: #21262d; padding: 3px 8px; border-radius: 12px; font-size: 0.75rem; margin-right: 5px; }
+        
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; }
+        .modal.show { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 30px; max-width: 500px; width: 90%; }
+        
+        @media (max-width: 768px) {
+            .stats { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🧠 TaskMind</h1>
+        <p>AI驱动的智能任务管理系统</p>
+    </header>
+    
+    <div class="container">
+        <!-- Stats -->
+        <div class="stats">
+            <div class="stat"><div class="stat-value" id="totalTasks">0</div><div class="stat-label">总任务</div></div>
+            <div class="stat"><div class="stat-value" id="completedTasks">0</div><div class="stat-label">已完成</div></div>
+            <div class="stat"><div class="stat-value" id="pendingTasks">0</div><div class="stat-label">进行中</div></div>
+            <div class="stat"><div class="stat-value" id="productivity">0%</div><div class="stat-label">完成率</div></div>
+        </div>
+        
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('tasks')">📋 任务</div>
+            <div class="tab" onclick="showTab('pomodoro')">🍅 番茄钟</div>
+            <div class="tab" onclick="showTab('analytics')">📊 分析</div>
+            <div class="tab" onclick="showTab('ai')">🤖 AI助手</div>
+        </div>
+        
+        <!-- Tasks -->
+        <div id="tasks" class="section active">
+            <div class="task-form">
+                <h3>➕ 添加任务</h3>
+                <input type="text" id="taskTitle" placeholder="任务标题">
+                <textarea id="taskDesc" placeholder="任务描述" rows="2"></textarea>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <select id="taskPriority">
+                        <option value="low">🟢 低优先级</option>
+                        <option value="medium" selected>🟡 中优先级</option>
+                        <option value="high">🔴 高优先级</option>
+                    </select>
+                    <input type="date" id="taskDue">
+                </div>
+                <input type="text" id="taskTags" placeholder="标签 (逗号分隔)">
+                <button onclick="addTask()" style="width:100%">添加任务</button>
+            </div>
+            
+            <!-- Filter -->
+            <div style="margin-bottom:15px;display:flex;gap:10px;flex-wrap:wrap">
+                <button class="tab" onclick="filterTasks('all')">全部</button>
+                <button class="tab" onclick="filterTasks('pending')">待完成</button>
+                <button class="tab" onclick="filterTasks('completed')">已完成</button>
+                <button class="tab" onclick="filterTasks('high')">高优先级</button>
+            </div>
+            
+            <div class="task-list" id="taskList"></div>
+        </div>
+        
+        <!-- Pomodoro -->
+        <div id="pomodoro" class="section">
+            <div class="pomodoro">
+                <h2>🍅 番茄工作法</h2>
+                <div class="timer" id="timer">25:00</div>
+                <div id="timerStatus">准备开始</div>
+                <div class="timer-controls">
+                    <button onclick="startTimer()" id="startBtn">▶️ 开始</button>
+                    <button onclick="pauseTimer()" class="tab">⏸️ 暂停</button>
+                    <button onclick="resetTimer()" class="tab">🔄 重置</button>
+                </div>
+                <div style="margin-top:20px">
+                    <button class="tab" onclick="setPomodoro(25)">工作 25分钟</button>
+                    <button class="tab" onclick="setPomodoro(5)">短休 5分钟</button>
+                    <button class="tab" onclick="setPomodoro(15)">长休 15分钟</button>
+                </div>
+                <div style="margin-top:20px">
+                    <p>今日番茄: <span id="pomodoroCount" style="color:#238636;font-weight:bold">0</span></p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Analytics -->
+        <div id="analytics" class="section">
+            <div class="chart">
+                <h3>📊 本周完成任务</h3>
+                <div id="weeklyChart"></div>
+            </div>
+            
+            <div class="chart">
+                <h3>🏷️ 按标签统计</h3>
+                <div id="tagChart"></div>
+            </div>
+            
+            <div class="chart">
+                <h3>🎯 优先级分布</h3>
+                <div id="priorityChart"></div>
+            </div>
+        </div>
+        
+        <!-- AI -->
+        <div id="ai" class="section">
+            <div class="ai-panel">
+                <h3>🤖 AI任务助手</h3>
+                <p style="color:#8b949e;margin-bottom:15px">告诉AI你想做什么，让它帮你创建任务</p>
+                <div style="display:flex;gap:10px">
+                    <input type="text" id="aiInput" placeholder="例如：帮我创建一个学习Python的计划，今天完成第三章" style="flex:1;margin-bottom:0">
+                    <button onclick="aiCreateTask()">创建</button>
+                </div>
+            </div>
+            
+            <div class="ai-panel">
+                <h3>💡 智能建议</h3>
+                <div id="aiSuggestions">
+                    <div class="empty">暂无建议</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Data
+        let data = JSON.parse(localStorage.getItem('taskmind') || '{"tasks":[],"pomodoro":0,"history":{}}');
+        let currentFilter = 'all';
+        let timerInterval = null;
+        let timerTime = 25 * 60;
+        let timerRunning = false;
+        
+        // Init
+        renderTasks();
+        updateStats();
+        
+        function saveData() {
+            localStorage.setItem('taskmind', JSON.stringify(data));
+        }
+        
+        function showTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelector(`.tab[onclick="showTab('${tab}')"]`).classList.add('active');
+            document.getElementById(tab).classList.add('active');
+            
+            if (tab === 'analytics') renderAnalytics();
+        }
+        
+        // Tasks
+        function addTask() {
+            const title = document.getElementById('taskTitle').value.trim();
+            const desc = document.getElementById('taskDesc').value.trim();
+            const priority = document.getElementById('taskPriority').value;
+            const due = document.getElementById('taskDue').value;
+            const tags = document.getElementById('taskTags').value.split(',').map(t => t.trim()).filter(t => t);
+            
+            if (!title) { alert('请输入任务标题'); return; }
+            
+            data.tasks.unshift({
+                id: Date.now(),
+                title,
+                desc,
+                priority,
+                due,
+                tags,
+                completed: false,
+                created: new Date().toISOString()
+            });
+            
+            document.getElementById('taskTitle').value = '';
+            document.getElementById('taskDesc').value = '';
+            document.getElementById('taskTags').value = '';
+            
+            saveData();
+            renderTasks();
+            updateStats();
+        }
+        
+        function renderTasks() {
+            const list = document.getElementById('taskList');
+            let tasks = data.tasks;
+            
+            // Filter
+            if (currentFilter === 'pending') tasks = tasks.filter(t => !t.completed);
+            if (currentFilter === 'completed') tasks = tasks.filter(t => t.completed);
+            if (currentFilter === 'high') tasks = tasks.filter(t => t.priority === 'high' && !t.completed);
+            
+            if (!tasks.length) {
+                list.innerHTML = '<div class="empty">暂无任务</div>';
+                return;
+            }
+            
+            list.innerHTML = tasks.map(t => `
+                <div class="task ${t.completed ? 'completed' : ''}">
+                    <input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTask(${t.id})">
+                    <span class="task-priority priority-${t.priority}">${t.priority === 'high' ? '高' : t.priority === 'medium' ? '中' : '低'}</span>
+                    <div class="task-content">
+                        <div class="task-title">${t.title}</div>
+                        <div class="task-meta">
+                            ${t.desc ? '<span>' + t.desc.substring(0, 50) + '</span>' : ''}
+                            ${t.due ? '<span>📅 ' + t.due + '</span>' : ''}
+                            ${t.tags.length ? '<span>' + t.tags.map(tag => '<span class="tag">' + tag + '</span>').join('') + '</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="task-actions">
+                        <button class="task-btn" onclick="editTask(${t.id})">✏️</button>
+                        <button class="task-btn" onclick="deleteTask(${t.id})">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function filterTasks(filter) {
+            currentFilter = filter;
+            renderTasks();
+        }
+        
+        function toggleTask(id) {
+            const task = data.tasks.find(t => t.id === id);
+            if (task) {
+                task.completed = !task.completed;
+                saveData();
+                renderTasks();
+                updateStats();
+            }
+        }
+        
+        function deleteTask(id) {
+            if (confirm('确定删除这个任务吗？')) {
+                data.tasks = data.tasks.filter(t => t.id !== id);
+                saveData();
+                renderTasks();
+                updateStats();
+            }
+        }
+        
+        function updateStats() {
+            const total = data.tasks.length;
+            const completed = data.tasks.filter(t => t.completed).length;
+            const pending = total - completed;
+            const productivity = total ? Math.round(completed / total * 100) : 0;
+            
+            document.getElementById('totalTasks').textContent = total;
+            document.getElementById('completedTasks').textContent = completed;
+            document.getElementById('pendingTasks').textContent = pending;
+            document.getElementById('productivity').textContent = productivity + '%';
+            
+            document.getElementById('pomodoroCount').textContent = data.pomodoro;
+        }
+        
+        // Pomodoro
+        function setPomodoro(minutes) {
+            timerTime = minutes * 60;
+            timerRunning = false;
+            clearInterval(timerInterval);
+            updateTimerDisplay();
+            document.getElementById('timerStatus').textContent = '准备开始';
+            document.getElementById('timer').classList.remove('break');
+        }
+        
+        function startTimer() {
+            if (timerRunning) return;
+            timerRunning = true;
+            document.getElementById('timerStatus').textContent = '工作中...';
+            
+            timerInterval = setInterval(() => {
+                timerTime--;
+                updateTimerDisplay();
+                
+                if (timerTime <= 0) {
+                    clearInterval(timerInterval);
+                    timerRunning = false;
+                    playNotification();
+                    
+                    if (document.getElementById('timer').classList.contains('break')) {
+                        document.getElementById('timerStatus').textContent = '休息结束！';
+                        setPomodoro(25);
+                    } else {
+                        data.pomodoro++;
+                        saveData();
+                        updateStats();
+                        document.getElementById('timerStatus').textContent = '时间到！';
+                        document.getElementById('timer').classList.add('break');
+                        setPomodoro(5);
+                    }
+                }
+            }, 1000);
+        }
+        
+        function pauseTimer() {
+            clearInterval(timerInterval);
+            timerRunning = false;
+            document.getElementById('timerStatus').textContent = '已暂停';
+        }
+        
+        function resetTimer() {
+            clearInterval(timerInterval);
+            timerRunning = false;
+            setPomodoro(25);
+        }
+        
+        function updateTimerDisplay() {
+            const m = Math.floor(timerTime / 60).toString().padStart(2, '0');
+            const s = (timerTime % 60).toString().padStart(2, '0');
+            document.getElementById('timer').textContent = m + ':' + s;
+        }
+        
+        function playNotification() {
+            alert('⏰ 时间到！');
+        }
+        
+        // Analytics
+        function renderAnalytics() {
+            // Weekly chart
+            const weekDays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+            const today = new Date();
+            let weekly = [];
+            
+            for (let i = 6; i >= 0; i--) {
+                const date = new Date(today);
+                date.setDate(date.getDate() - i);
+                const dayStr = date.toISOString().split('T')[0];
+                const count = data.history ? (data.history[dayStr] || 0) : 0;
+                weekly.push({ day: weekDays[date.getDay()], count });
+            }
+            
+            const maxCount = Math.max(...weekly.map(w => w.count), 1);
+            document.getElementById('weeklyChart').innerHTML = weekly.map(w => `
+                <div class="chart-bar">
+                    <div class="chart-label">${w.day}</div>
+                    <div class="chart-value">
+                        <div class="chart-fill" style="width:${w.count / maxCount * 100}%"></div>
+                    </div>
+                    <div style="width:30px;text-align:right">${w.count}</div>
+                </div>
+            `).join('');
+            
+            // Tag chart
+            const tagCounts = {};
+            data.tasks.forEach(t => {
+                t.tags.forEach(tag => {
+                    tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+                });
+            });
+            
+            const maxTag = Math.max(...Object.values(tagCounts), 1);
+            document.getElementById('tagChart').innerHTML = Object.entries(tagCounts).map(([tag, count]) => `
+                <div class="chart-bar">
+                    <div class="chart-label">${tag}</div>
+                    <div class="chart-value">
+                        <div class="chart-fill" style="width:${count / maxTag * 100}%"></div>
+                    </div>
+                    <div style="width:30px;text-align:right">${count}</div>
+                </div>
+            `).join('') || '<div class="empty">暂无标签</div>';
+            
+            // Priority chart
+            const priorities = { high: 0, medium: 0, low: 0 };
+            data.tasks.filter(t => !t.completed).forEach(t => priorities[t.priority]++);
+            const maxP = Math.max(...Object.values(priorities), 1);
+            
+            document.getElementById('priorityChart').innerHTML = Object.entries(priorities).map(([p, count]) => `
+                <div class="chart-bar">
+                    <div class="chart-label">${p === 'high' ? '🔴 高' : p === 'medium' ? '🟡 中' : '🟢 低'}</div>
+                    <div class="chart-value">
+                        <div class="chart-fill" style="width:${count / maxP * 100}%"></div>
+                    </div>
+                    <div style="width:30px;text-align:right">${count}</div>
+                </div>
+            `).join('');
+        }
+        
+        // AI
+        function aiCreateTask() {
+            const input = document.getElementById('aiInput').value.trim();
+            if (!input) return;
+            
+            // Simple AI parsing (in real app, call AI API)
+            const priority = input.includes('紧急') || input.includes('重要') ? 'high' : 
+                           input.includes('重要') ? 'medium' : 'low';
+            
+            data.tasks.unshift({
+                id: Date.now(),
+                title: input,
+                desc: 'AI创建的任务',
+                priority,
+                due: '',
+                tags: ['AI'],
+                completed: false,
+                created: new Date().toISOString()
+            });
+            
+            document.getElementById('aiInput').value = '';
+            saveData();
+            renderTasks();
+            updateStats();
+            alert('✅ AI已创建任务！');
+            
+            // Show suggestions
+            const suggestions = [
+                '建议：可以将任务分解为多个小任务',
+                '提示：设置截止日期有助于提高效率',
+                '推荐：使用番茄工作法提高专注度'
+            ];
+            document.getElementById('aiSuggestions').innerHTML = suggestions.map(s => 
+                '<div style="padding:10px;background:#21262d;border-radius:8px;margin-bottom:10px">' + s + '</div>'
+            ).join('');
+        }
+    </script>
+</body>
+</html>
